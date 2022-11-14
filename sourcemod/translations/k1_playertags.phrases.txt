@@ -1,0 +1,19 @@
+"Phrases"
+{
+	"playertags_incognito_on"
+	{
+		"#format"	"{1:.0f}"
+		"en"		"Stealth mode {green} is enabled {green} for {1} seconds!"
+		"ru"		"Режим невидимки {green}включен {green}на {1} секунд!"
+	}
+	"playertags_incognito_on_perm"
+	{
+		"en"		"Invisibility mode {green} is enabled {default}indefinitely! To exit, use the command {green}!inc"
+		"ru"		"Режим невидимки {green}включен {default}бесконечно! Чтобы выйти используйте команду {green}!inc"
+	}
+	"playertags_incognito_off"
+	{
+		"en"		"Invisible mode {red} is disabled"
+		"ru"		"Режим невидимки {red}выключен"
+	}
+}
