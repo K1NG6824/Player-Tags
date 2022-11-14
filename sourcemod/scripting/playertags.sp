@@ -1,7 +1,6 @@
 #include <sourcemod>
 #include <cstrike>
 #include <csgo_colors>
-#include <mystocks>
 #include <k1_playertag>
 #include <scp>
 
@@ -14,7 +13,7 @@ char 	g_sPrefix[64],
 bool 	g_bStats,
 		g_bChat,
 		g_bNoOverwrite,
-		g_bIncognito[MAXPLAYERS + 1] = false,
+		g_bIncognito[MAXPLAYERS + 1],
 		g_bIsLateLoad = false,
 		g_bJoinIncognito;
 
@@ -34,13 +33,13 @@ enum struct Roles
 Roles g_sChatTag[MAXPLAYERS + 1];
 Roles g_sStatsTag[MAXPLAYERS + 1];
 
-Handle g_hIncognitoTimer[MAXPLAYERS + 1] = null;
+Handle g_hIncognitoTimer[MAXPLAYERS + 1];
 
 public Plugin myinfo =
 {
 	name = "Player Tags",
 	author = "K1NG",
-	version = "1.0"
+	version = "1.1"
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -77,14 +76,14 @@ public void OnPluginStart()
 	int iCount = 0;
 	char sCommands[128], sCommandsL[12][32];
 
-    hkv.GetString("prefix", g_sPrefix, sizeof(g_sPrefix), "[PlayerTags]");
-    g_bStats = !!hkv.GetNum("stats", 1);
-    g_bChat = !!hkv.GetNum("chat", 1);
-    g_bNoOverwrite = !!hkv.GetNum("overwrite", 0);
-    g_bJoinIncognito = !!hkv.GetNum("incognito_join", 1);
-    g_fIncognitoTime = hkv.GetFloat("incognito_time", 120.0); 
-    hkv.GetString("adminflag", g_sAdminFlag, sizeof(g_sAdminFlag), "a");
-    hkv.GetString("incognito_cmds", sCommands, sizeof(sCommands), "");
+	hkv.GetString("prefix", g_sPrefix, sizeof(g_sPrefix), "[PlayerTags]");
+	g_bStats = !!hkv.GetNum("stats", 1);
+	g_bChat = !!hkv.GetNum("chat", 1);
+	g_bNoOverwrite = !!hkv.GetNum("overwrite", 0);
+	g_bJoinIncognito = !!hkv.GetNum("incognito_join", 1);
+	g_fIncognitoTime = hkv.GetFloat("incognito_time", 120.0); 
+	hkv.GetString("adminflag", g_sAdminFlag, sizeof(g_sAdminFlag), "a");
+	hkv.GetString("incognito_cmds", sCommands, sizeof(sCommands), "");
 	RegAdminCmd("sm_incognito", Command_Incognito, ReadFlagString(g_sAdminFlag), "Allows admin to toggle incognito - show default tags instead of admin tags");
 	delete hkv;
 
@@ -94,7 +93,7 @@ public void OnPluginStart()
 	{
 		if (!CommandExists(sCommandsL[i]))
 		{
-			RegAdminCmd(sCommandsL[i],  Command_Incognito, ReadFlagString(g_sAdminFlag), "Allows admin to toggle incognito - show default tags instead of admin tags");
+			RegAdminCmd(sCommandsL[i], Command_Incognito, ReadFlagString(g_sAdminFlag), "Allows admin to toggle incognito - show default tags instead of admin tags");
 		}
 	}
 
@@ -423,4 +422,30 @@ public Action OnChatMessage(int &client, Handle recipients, char[] name, char[] 
 	Format(message, MAXLENGTH_MESSAGE, "%s%s", sMsg, message);
 
 	return Plugin_Changed;
+}
+
+stock bool IsValidClient(int client, bool bots = true, bool dead = true)
+{
+	if (client <= 0)
+		return false;
+
+	if (client > MaxClients)
+		return false;
+
+	if (!IsClientInGame(client))
+		return false;
+
+	if (IsFakeClient(client) && !bots)
+		return false;
+
+	if (IsClientSourceTV(client))
+		return false;
+
+	if (IsClientReplay(client))
+		return false;
+
+	if (!IsPlayerAlive(client) && !dead)
+		return false;
+
+	return true;
 }
