@@ -41,7 +41,7 @@ public Plugin myinfo =
 {
 	name = "Player Tags",
 	author = "K1NG",
-	version = "1.0"
+	version = "1.1"
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
