@@ -211,7 +211,7 @@ public Action Timer_Incognito(Handle tmr, int userid)
 
 	HandleTag(client);
 
-	CGOPrintToChat(client, "%s%t", g_sPrefix, "playertags_incognito_off");
+	CGOPrintToChat(client, "%s%T", g_sPrefix, "playertags_incognito_off", client);
 
 	g_hIncognitoTimer[client] = null;
 
