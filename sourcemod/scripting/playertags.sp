@@ -1,7 +1,6 @@
 #include <sourcemod>
 #include <cstrike>
 #include <csgo_colors>
-#include <mystocks>
 #include <k1_playertag>
 #include <scp>
 
@@ -423,4 +422,30 @@ public Action OnChatMessage(int &client, Handle recipients, char[] name, char[] 
 	Format(message, MAXLENGTH_MESSAGE, "%s%s", sMsg, message);
 
 	return Plugin_Changed;
+}
+
+stock bool IsValidClient(int client, bool bots = true, bool dead = true)
+{
+	if (client <= 0)
+		return false;
+
+	if (client > MaxClients)
+		return false;
+
+	if (!IsClientInGame(client))
+		return false;
+
+	if (IsFakeClient(client) && !bots)
+		return false;
+
+	if (IsClientSourceTV(client))
+		return false;
+
+	if (IsClientReplay(client))
+		return false;
+
+	if (!IsPlayerAlive(client) && !dead)
+		return false;
+
+	return true;
 }
