@@ -2,9 +2,7 @@
 #include <cstrike>
 #include <csgo_colors>
 #include <k1_playertag>
-
-#define MAXLENGTH_NAME 128
-#define MAXLENGTH_MESSAGE 256
+#include <scp>
 
 #define CONFIG "addons/sourcemod/configs/player_tags.cfg"
 
