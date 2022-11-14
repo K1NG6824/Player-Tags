@@ -294,6 +294,23 @@ void LoadPlayerTags(int client)
 		delete kvMenu;
 		return;
 	}
+	
+	static char sGroup[32];
+	AdminId admin = GetUserAdmin(client);
+	if (admin != INVALID_ADMIN_ID)
+	{
+		GroupId group = admin.GetGroup(0, sGroup, sizeof(sGroup));
+		if (group != INVALID_GROUP_ID)
+		{
+			if(kvMenu.JumpToKey(sGroup))
+			{
+				GetTags(client, kvMenu);
+				delete kvMenu;
+				return;
+			}
+		}
+	}
+
 
 	char sFlags[21] = "abcdefghijklmnopqrstz";
 
