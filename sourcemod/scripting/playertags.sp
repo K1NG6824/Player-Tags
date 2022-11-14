@@ -1,3 +1,5 @@
+#pragma tabsize 0
+
 #include <sourcemod>
 #include <cstrike>
 #include <csgo_colors>
@@ -13,7 +15,7 @@ char 	g_sPrefix[64],
 bool 	g_bStats,
 		g_bChat,
 		g_bNoOverwrite,
-		g_bIncognito[MAXPLAYERS + 1] = false,
+		g_bIncognito[MAXPLAYERS + 1] = {false, ...},
 		g_bIsLateLoad = false,
 		g_bJoinIncognito;
 
@@ -33,7 +35,7 @@ enum struct Roles
 Roles g_sChatTag[MAXPLAYERS + 1];
 Roles g_sStatsTag[MAXPLAYERS + 1];
 
-Handle g_hIncognitoTimer[MAXPLAYERS + 1] = null;
+Handle g_hIncognitoTimer[MAXPLAYERS + 1] = {null, ...};
 
 public Plugin myinfo =
 {
