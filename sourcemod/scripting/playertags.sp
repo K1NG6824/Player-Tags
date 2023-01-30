@@ -1,10 +1,14 @@
-#include <sourcemod>
+#pragma semicolon 1
+
 #include <cstrike>
 #include <csgo_colors>
 #include <k1_playertag>
 #include <scp>
+#include <clientprefs>
 
 #define CONFIG "addons/sourcemod/configs/player_tags.cfg"
+#define TAG_LENGTH	64	// Максимальный размер тега
+
 
 char 	g_sPrefix[64],
 		g_sPlayerTag[MAXPLAYERS + 1][64],
@@ -14,6 +18,7 @@ bool 	g_bStats,
 		g_bChat,
 		g_bNoOverwrite,
 		g_bIncognito[MAXPLAYERS + 1],
+		g_bIncognitoForever[MAXPLAYERS + 1],
 		g_bIsLateLoad = false,
 		g_bJoinIncognito;
 
@@ -34,12 +39,13 @@ Roles g_sChatTag[MAXPLAYERS + 1];
 Roles g_sStatsTag[MAXPLAYERS + 1];
 
 Handle g_hIncognitoTimer[MAXPLAYERS + 1];
+Handle g_hCookie;
 
 public Plugin myinfo =
 {
 	name = "Player Tags",
 	author = "K1NG",
-	version = "1.1"
+	version = "1.2"
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -73,7 +79,6 @@ public void OnPluginStart()
 		SetFailState("PlayerTags - Не найден файл %s ", CONFIG);
 	}
 
-	int iCount = 0;
 	char sCommands[128], sCommandsL[12][32];
 
 	hkv.GetString("prefix", g_sPrefix, sizeof(g_sPrefix), "[PlayerTags]");
@@ -88,44 +93,44 @@ public void OnPluginStart()
 	delete hkv;
 
 	ReplaceString(sCommands, sizeof(sCommands), " ", "");
-	iCount = ExplodeString(sCommands, ",", sCommandsL, sizeof(sCommandsL), sizeof(sCommandsL[]));
-	for (int i = 0; i < iCount; i++)
-	{
-		if (!CommandExists(sCommandsL[i]))
-		{
-			RegAdminCmd(sCommandsL[i], Command_Incognito, ReadFlagString(g_sAdminFlag), "Allows admin to toggle incognito - show default tags instead of admin tags");
-		}
-	}
+
+	int iCount = ExplodeString(sCommands, ",", sCommandsL, sizeof(sCommandsL), sizeof(sCommandsL[]));
+	for(int i; i < iCount; i++) if(!CommandExists(sCommandsL[i]))
+		RegAdminCmd(sCommandsL[i], Command_Incognito, ReadFlagString(g_sAdminFlag), "Allows admin to toggle incognito - show default tags instead of admin tags");
 
 	HookEvent("player_team", Event_CheckTag);
 
-	if (g_bIsLateLoad)
+	if(g_bIsLateLoad)
 	{
-		for (int i = 1; i <= MaxClients; i++)
-		{
-			if (!IsClientInGame(i))
-				continue;
-
-			OnClientPostAdminCheck(i);
-		}
+		for(int i = 1; i <= MaxClients; i++) if(IsClientInGame(i)) OnClientPostAdminCheck(i);
 		g_bIsLateLoad = false;
 	}
+
+	g_hCookie = RegClientCookie("Incognito", "Saves Incognito навсегда крч", CookieAccess_Private);
+}
+
+
+public void OnClientCookiesCached(int iClient)
+{
+    char szValue[4];
+    GetClientCookie(iClient, g_hCookie, szValue, sizeof(szValue));
+	if(szValue[0])
+		g_bIncognitoForever[iClient] = view_as<bool>(StringToInt(szValue)); //хз мб можно только это оставить
+	else
+		g_bIncognitoForever[iClient] = false;
 }
 
 public Action Command_Incognito(int client, int args)
 {
-	if (!IsValidClient(client, false, true))
+	if(!IsValidClient(client, false, true))
 		return Plugin_Handled;
 
 	if(g_bIncognito[client] && args == 0)
 	{
 		g_bIncognito[client] = false;
-
-		if (g_hIncognitoTimer[client] != INVALID_HANDLE)
-		{
-			KillTimer(g_hIncognitoTimer[client]);
-			g_hIncognitoTimer[client] = INVALID_HANDLE;
-		}
+		g_bIncognitoForever[client] = false;
+		SetClientCookie(client, g_hCookie, "0");
+		DeleteTimer(client);
 
 		CGOPrintToChat(client, "%s%T", g_sPrefix, "playertags_incognito_off", client);
 	}
@@ -135,27 +140,28 @@ public Action Command_Incognito(int client, int args)
 
 		float fIncognitoTime = g_fIncognitoTime;
 
-		if (args != 0) 
+		if(args) 
 		{
 			char sArgs[10];
 			GetCmdArg(1, sArgs, sizeof(sArgs));
 			fIncognitoTime = StringToFloat(sArgs);
 		}
 		
-		if (g_hIncognitoTimer[client] != null)
-		{
-			delete g_hIncognitoTimer[client];
-		}
+		DeleteTimer(client);
+
 
 		if (fIncognitoTime > 0)
 		{
 			g_hIncognitoTimer[client] = CreateTimer(fIncognitoTime, Timer_Incognito, GetClientUserId(client));
-
 			CGOPrintToChat(client, "%s%T", g_sPrefix, "playertags_incognito_on", client, fIncognitoTime);
+			g_bIncognitoForever[client] = false;
+			SetClientCookie(client, g_hCookie, "0");
 		}
 		else
 		{
 			CGOPrintToChat(client, "%s%T", g_sPrefix, "playertags_incognito_on_perm", client, fIncognitoTime);
+			g_bIncognitoForever[client] = true;
+			SetClientCookie(client, g_hCookie, "1");
 		}
 	}
 
@@ -184,8 +190,12 @@ public Action OnClientCommandKeyValues(int client, KeyValues kv)
 public void OnClientPostAdminCheck(int client)
 {
 	CS_GetClientClanTag(client, g_sPlayerTag[client], sizeof(g_sPlayerTag[]));
-
-	if (g_bJoinIncognito)
+	if(g_bIncognitoForever[client] == true)
+	{
+		if(ReadFlagString(g_sAdminFlag) & GetUserFlagBits(client))
+			g_bIncognito[client] = true;
+	}
+	else if (g_bJoinIncognito)
 	{
 		if(ReadFlagString(g_sAdminFlag) & GetUserFlagBits(client))
 		{
@@ -226,10 +236,7 @@ public void Event_CheckTag(Event event, char[] name, bool dontBroadcast)
 
 public void OnClientDisconnect(int client)
 {
-	if (g_hIncognitoTimer[client] != null)
-	{
-		delete g_hIncognitoTimer[client];
-	}
+	DeleteTimer(client);
 }
 
 public void Frame_HandleTag(int userid)
@@ -266,7 +273,7 @@ void LoadPlayerTags(int client)
 		}
 	}
 
-	if(g_bIncognito[client])
+	if(g_bIncognito[client] && ReadFlagString(g_sAdminFlag) & GetUserFlagBits(client))
 	{
 		if (kvMenu.JumpToKey("default", false))
 		{
@@ -310,7 +317,6 @@ void LoadPlayerTags(int client)
 			}
 		}
 	}
-
 
 	char sFlags[21] = "abcdefghijklmnopqrstz";
 
@@ -358,39 +364,34 @@ void HandleTag(int client)
 	if (!g_bStats || !IsValidClient(client, true, true))
 		return;
 
-	if (GetClientTeam(client) == CS_TEAM_T)
+	int team = GetClientTeam(client);
+	if(!team)
+		return;
+
+	char buffer[TAG_LENGTH];
+	switch(team)	
 	{
-		if (g_bNoOverwrite && strlen(g_sStatsTag[client].T_TEAM) < 1)
+		case CS_TEAM_T:
 		{
-			CS_SetClientClanTag(client, g_sPlayerTag[client]);
+			if(g_bNoOverwrite && strlen(g_sStatsTag[client].T_TEAM) < 1)
+				FormatEx(buffer, sizeof(buffer), g_sPlayerTag[client]);
+			else FormatEx(buffer, sizeof(buffer), g_sStatsTag[client].T_TEAM);
 		}
-		else
+		case CS_TEAM_CT:
 		{
-			CS_SetClientClanTag(client, g_sStatsTag[client].T_TEAM);
+			if(g_bNoOverwrite && strlen(g_sStatsTag[client].CT_TEAM) < 1)
+				FormatEx(buffer, sizeof(buffer), g_sPlayerTag[client]);
+			else FormatEx(buffer, sizeof(buffer), g_sStatsTag[client].CT_TEAM);
+		}
+		case CS_TEAM_SPECTATOR:
+		{
+			if(g_bNoOverwrite && strlen(g_sStatsTag[client].SPECTATOR) < 1)
+				FormatEx(buffer, sizeof(buffer), g_sPlayerTag[client]);
+			else FormatEx(buffer, sizeof(buffer), g_sStatsTag[client].SPECTATOR);
 		}
 	}
-	else if (GetClientTeam(client) == CS_TEAM_CT)
-	{
-		if (g_bNoOverwrite && strlen(g_sStatsTag[client].CT_TEAM) < 1)
-		{
-			CS_SetClientClanTag(client, g_sPlayerTag[client]);
-		}
-		else
-		{
-			CS_SetClientClanTag(client, g_sStatsTag[client].CT_TEAM);
-		}
-	}
-	else if (GetClientTeam(client) == CS_TEAM_SPECTATOR)
-	{
-		if (g_bNoOverwrite && strlen(g_sStatsTag[client].SPECTATOR) < 1)
-		{
-			CS_SetClientClanTag(client, g_sPlayerTag[client]);
-		}
-		else
-		{
-			CS_SetClientClanTag(client, g_sStatsTag[client].SPECTATOR);
-		}
-	}
+
+	CS_SetClientClanTag(client, buffer);
 }
 
 void ReplaceStringColors(char[] sMessage, int iMaxLen)
@@ -412,25 +413,31 @@ void ReplaceStringColors(char[] sMessage, int iMaxLen)
 
 public Action OnChatMessage(int &client, Handle recipients, char[] name, char[] message)
 {
-	if (!g_bChat)
+	if(!g_bChat)
 		return Plugin_Continue;
-	char sMsg[64];
-	if (GetClientTeam(client) == CS_TEAM_T)
+
+	char sMsg[MAXLENGTH_MESSAGE];
+	int team = GetClientTeam(client);
+	switch(team)	
 	{
-		Format(name, MAXLENGTH_NAME, "%s %s", g_sChatTag[client].T_TEAM, name);
-		Format(sMsg, MAXLENGTH_MESSAGE, "%s", g_sChatTag[client].T_MSG);
+		case CS_TEAM_T:
+		{
+			Format(name, MAXLENGTH_NAME, "%s %s", g_sChatTag[client].T_TEAM, name);
+			FormatEx(sMsg, sizeof(sMsg), "%s", g_sChatTag[client].T_MSG);
+		}
+		case CS_TEAM_CT:
+		{
+			Format(name, MAXLENGTH_NAME, "%s %s", g_sChatTag[client].CT_TEAM, name);
+			FormatEx(sMsg, sizeof(sMsg), "%s", g_sChatTag[client].CT_MSG);
+		}
+		case CS_TEAM_SPECTATOR:
+		{
+			Format(name, MAXLENGTH_NAME, "%s %s", g_sChatTag[client].SPECTATOR, name);
+			FormatEx(sMsg, sizeof(sMsg), "%s", g_sChatTag[client].S_MSG);
+		}
 	}
-	else if (GetClientTeam(client) == CS_TEAM_CT)
-	{
-		Format(name, MAXLENGTH_NAME, "%s %s", g_sChatTag[client].CT_TEAM, name);
-		Format(sMsg, MAXLENGTH_MESSAGE, "%s", g_sChatTag[client].CT_MSG);
-	}
-	else if (GetClientTeam(client) == CS_TEAM_SPECTATOR)
-	{
-		Format(name, MAXLENGTH_NAME, "%s %s", g_sChatTag[client].SPECTATOR, name);
-		Format(sMsg, MAXLENGTH_MESSAGE, "%s", g_sChatTag[client].S_MSG);
-	}
-	if(!IsPlayerAlive(client) && GetClientTeam(client) != CS_TEAM_SPECTATOR)
+
+	if(team != CS_TEAM_SPECTATOR && !IsPlayerAlive(client))
 		Format(name, MAXLENGTH_NAME, "%s%s", g_sChatTag[client].DEAD, name);
 	
 	Format(name, MAXLENGTH_NAME, " %s", name);
@@ -439,6 +446,15 @@ public Action OnChatMessage(int &client, Handle recipients, char[] name, char[] 
 	Format(message, MAXLENGTH_MESSAGE, "%s%s", sMsg, message);
 
 	return Plugin_Changed;
+}
+
+stock void DeleteTimer(int client)
+{
+	if(g_hIncognitoTimer[client])
+	{
+		CloseHandle(g_hIncognitoTimer[client]);
+		g_hIncognitoTimer[client] = null;
+	}
 }
 
 stock bool IsValidClient(int client, bool bots = true, bool dead = true)
